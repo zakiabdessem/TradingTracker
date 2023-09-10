@@ -31,7 +31,7 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
   }
 
   async onEquityOrBalanceUpdated(equityBalanceData) {
-    // console.log("equity balance update received", equityBalanceData);
+    console.log("equity balance update received", equityBalanceData);
     this.triggerWorker(equityBalanceData);
   }
   async onConnected() {
@@ -69,6 +69,7 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
         }
       );
       if (!result.error && (result.breach || result.profitTarget)) {
+        console.log(result)
         piscina.run(result, {
           name: "dataHandler",
         });
