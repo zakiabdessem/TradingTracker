@@ -17,154 +17,6 @@ const _ = require("lodash");
 // Import your Challenge model
 const Challenge = require("./model/challenge");
 
-// RESTful route to trigger account checks
-app.get("/checkAllAccounts", async (req, res) => {
-  try {
-    const accountsOnePhase = await Challenge.find({
-      accountType: "one-phase",
-      status: "in-progress",
-    })
-      .select("-credentials -withdrawls -order")
-      .lean()
-      .exec();
-    const accountsTwoPhase = await Challenge.find({
-      accountType: "two-phase",
-      status: "in-progress",
-    })
-      .select("-credentials -withdrawls")
-      .lean()
-      .exec();
-    const accountsFunded = await Challenge.find({
-      accountType: "funded",
-      status: "in-progress",
-    })
-      .select("-credentials -withdrawls")
-      .lean()
-      .exec();
-
-    const onePhasePromises = accountsOnePhase.map((account) => {
-      return piscina.run(
-        { ...account, _id: account._id.toString() },
-        {
-          name: "onePhaseTracker",
-        }
-      );
-    });
-
-    const twoPhasePromises = accountsTwoPhase.map((account) => {
-      return piscina.run(
-        { ...account, _id: account._id.toString() },
-        {
-          name: "twoPhaseTracker",
-        }
-      );
-    });
-
-    const fundedPromises = accountsFunded.map((account) => {
-      return piscina.run(
-        {
-          data: { ...account, _id: account._id.toString() },
-          type: "funded",
-        },
-        {
-          name: "fundedTracker",
-        }
-      );
-    });
-
-    const results = await Promise.all([
-      ...onePhasePromises,
-      ...twoPhasePromises,
-      ...fundedPromises,
-    ]);
-
-    const handleDataPromises = await Promise.all(
-      results.map((data) => {
-        return piscina.run(data, {
-          name: "dataHandler",
-        });
-      })
-    );
-
-    res.json(results);
-  } catch (e) {
-    console.log(e);
-  }
-});
-
-const checkAllAccounts = async () => {
-  console.log("Checking");
-  try {
-    const accountsOnePhase = await Challenge.find({
-      accountType: "one-phase",
-      status: "in-progress",
-    })
-      .select("-credentials -withdrawls -order")
-      .lean()
-      .exec();
-    const accountsTwoPhase = await Challenge.find({
-      accountType: "two-phase",
-      status: "in-progress",
-    })
-      .select("-credentials -withdrawls")
-      .lean()
-      .exec();
-    const accountsFunded = await Challenge.find({
-      accountType: "funded",
-      status: "in-progress",
-    })
-      .select("-credentials -withdrawls")
-      .lean()
-      .exec();
-
-    const onePhasePromises = accountsOnePhase.map((account) => {
-      return piscina.run(
-        { ...account, _id: account._id.toString() },
-        {
-          name: "onePhaseTracker",
-        }
-      );
-    });
-
-    const twoPhasePromises = accountsTwoPhase.map((account) => {
-      return piscina.run(
-        { ...account, _id: account._id.toString() },
-        {
-          name: "twoPhaseTracker",
-        }
-      );
-    });
-
-    const fundedPromises = accountsFunded.map((account) => {
-      return piscina.run(
-        {
-          data: { ...account, _id: account._id.toString() },
-          type: "funded",
-        },
-        {
-          name: "fundedTracker",
-        }
-      );
-    });
-
-    const results = await Promise.all([
-      ...onePhasePromises,
-      ...twoPhasePromises,
-      ...fundedPromises,
-    ]);
-
-    const handleDataPromises = await Promise.all(
-      results.map((data) => {
-        return piscina.run(data, {
-          name: "dataHandler",
-        });
-      })
-    );
-  } catch (e) {
-    console.log(e);
-  }
-};
-
 const RiskManagement = require("metaapi.cloud-sdk").RiskManagement;
 const EquityBalanceListener =
   require("metaapi.cloud-sdk").EquityBalanceListener;
@@ -175,11 +27,11 @@ const riskManagementApi = riskManagement.riskManagementApi;
 class ExampleEquityBalanceListener extends EquityBalanceListener {
   constructor(accountId) {
     super(accountId);
-    this.triggerWorker = _.debounce(this.runWorker, 30000);
+    this.triggerWorker = _.debounce(this.runWorker, 5000);
   }
 
   async onEquityOrBalanceUpdated(equityBalanceData) {
-   // console.log("equity balance update received", equityBalanceData);
+    // console.log("equity balance update received", equityBalanceData);
     this.triggerWorker(equityBalanceData);
   }
   async onConnected() {
@@ -187,7 +39,7 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
   }
 
   async onDisconnected() {
-   // console.log("on disconnected event received");
+    // console.log("on disconnected event received");
   }
 
   async runWorker(equityBalanceData) {
@@ -216,16 +68,16 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
               : "fundedTracker",
         }
       );
-      if (!result.error && (result.breach || result.profitTarget))
+      if (!result.error && (result.breach || result.profitTarget)) {
+        piscina.run(result, {
+          name: "dataHandler",
+        });
 
-      piscina.run(result, {
-        name: "dataHandler",
-      });
+        this.stop();
+      }
     } catch (e) {
       console.log(e);
     }
-    // Your worker logic here, this function will only be called once every 5 seconds at most
-    // Even if onEquityOrBalanceUpdated gets called multiple times in quick succession
   }
 }
 
