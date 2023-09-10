@@ -8,29 +8,20 @@ const metaStats = new MetaStats(process.env.METAAPI_AUTH_TOKEN);
 const axios = require("axios");
 
 module.exports = {
-  onePhaseTracker: async function (data) {
+  onePhaseTracker: async function ({ account, equityBalanceData }) {
     try {
-      const response = await axios.get(
-        `https://metastats-api-v1.new-york.agiliumtrade.ai/users/current/accounts/${data.accountId}/metrics`,
-        {
-          headers: {
-            "auth-token": `${process.env.METAAPI_AUTH_TOKEN}`,
-          },
-        }
-      );
-
-      const account = response.data.metrics;
-
       const overAllDrawdown =
-        ((data.initialBalance - account.equity) / data.initialBalance) * 100;
+        ((account.initialBalance - equityBalanceData.equity) /
+          account.initialBalance) *
+        100;
 
       if (overAllDrawdown >= 12)
         return {
-          account: data,
+          account,
           breach: true,
           breachType: "OverAll",
           drawDown: {
-            equity: account.equity,
+            equity: equityBalanceData.equity,
             percentage: overAllDrawdown,
           },
           profitTarget: false,
@@ -38,14 +29,16 @@ module.exports = {
         };
 
       const dailyDrawdown =
-        ((data.startingBalance - account.equity) / data.startingBalance) * 100;
+        ((account.startingBalance - equityBalanceData.equity) /
+          account.startingBalance) *
+        100;
 
-      if (isNewDay(data.lastChecked)) {
-        data.startingBalance = account.equity;
-        data.lastChecked = new Date();
+      if (isNewDay(account.lastChecked)) {
+        account.startingBalance = equityBalanceData.equity;
+        account.lastChecked = new Date();
         await axios.post(
-          `${process.env.API}/updates/newDay/${data._id}`,
-          data, // Assuming `account` is a JSON object
+          `${process.env.API}/updates/newDay/${account._id}`,
+          account, // Assuming `account` is a JSON object
           {
             headers: {
               Authorization: `${process.env.SECRET_TOKEN}`,
@@ -56,70 +49,61 @@ module.exports = {
 
       if (dailyDrawdown >= 6)
         return {
-          account: data,
+          account,
           breach: true,
           breachType: "Daily",
           drawDown: {
-            equity: account.equity,
+            equity: equityBalanceData.equity,
             percentage: dailyDrawdown,
           },
           profitTarget: false,
           error: false,
         };
 
-      switch (data.challengeType) {
+      switch (account.challengeType) {
         case "one-phase":
           return {
-            account: data,
+            account,
             breach: false,
             breachType: null,
             profitTarget:
-              account.balance >=
-              data.initialBalance * 0.09 + data.initialBalance,
+              equityBalanceData.balance >=
+              account.initialBalance * 0.09 + account.initialBalance,
             drawDown: null,
             error: false,
           };
 
         case "two-phase":
           return {
-            account: data,
+            account,
             breach: false,
             breachType: null,
             profitTarget:
-              account.balance >=
-              data.initialBalance * 0.08 + data.initialBalance,
+              equityBalanceData.balance >=
+              account.initialBalance * 0.08 + account.initialBalance,
             drawDown: null,
             error: false,
           };
       }
     } catch (e) {
       //console.log(e);
-      return { account: data, error: true };
+      return { account, error: true };
     }
   },
-  twoPhaseTracker: async function (data) {
+  twoPhaseTracker: async function ({ account, equityBalanceData }) {
     try {
-      const response = await axios.get(
-        `https://metastats-api-v1.new-york.agiliumtrade.ai/users/current/accounts/${data.accountId}/metrics`,
-        {
-          headers: {
-            "auth-token": `${process.env.METAAPI_AUTH_TOKEN}`,
-          },
-        }
-      );
-
-      const account = response.data.metrics;
-
       const overAllDrawdown =
-        ((data.initialBalance - account.equity) / data.initialBalance) * 100;
+        ((account.initialBalance - equityBalanceData.equity) /
+          account.initialBalance) *
+        100;
 
       if (overAllDrawdown >= 12)
         return {
-          account: data,
+          account,
           breach: true,
           breachType: "OverAll",
           drawDown: {
-            equity: account.equity,
+            equity: equityBalanceData.equity,
             percentage: overAllDrawdown,
           },
           profitTarget: false,
@@ -127,14 +111,16 @@ module.exports = {
         };
 
       const dailyDrawdown =
-        ((data.startingBalance - account.equity) / data.startingBalance) * 100;
+        ((account.startingBalance - equityBalanceData.equity) /
+          account.startingBalance) *
+        100;
 
-      if (isNewDay(data.lastChecked)) {
-        data.startingBalance = account.equity;
-        data.lastChecked = new Date();
+      if (isNewDay(account.lastChecked)) {
+        account.startingBalance = equityBalanceData.equity;
+        account.lastChecked = new Date();
         await axios.post(
-          `${process.env.API}/updates/newDay/${data._id}`,
-          data, // Assuming `account` is a JSON object
+          `${process.env.API}/updates/newDay/${account._id}`,
+          account, // Assuming `account` is a JSON object
           {
             headers: {
               Authorization: `${process.env.SECRET_TOKEN}`,
@@ -145,12 +131,11 @@ module.exports = {
 
       if (dailyDrawdown >= 6)
         return {
-          account: data,
-
+          account,
           breach: true,
           breachType: "Daily",
           drawDown: {
-            equity: account.equity,
+            equity: equityBalanceData.equity,
             percentage: dailyDrawdown,
           },
           profitTarget: false,
@@ -158,41 +143,34 @@ module.exports = {
         };
 
       return {
-        account: data,
+        account,
         breach: false,
         breachType: null,
         profitTarget:
-          account.balance >= data.initialBalance * 0.05 + data.initialBalance,
+          equityBalanceData.balance >=
+          account.initialBalance * 0.05 + account.initialBalance,
         drawDown: null,
         error: false,
       };
     } catch (e) {
       //console.log(e);
-      return { account: data, error: true };
+      return { account, error: true };
     }
   },
-  fundedTracker: async function ({ data, type }) {
+  fundedTracker: async function ({ account, equityBalanceData }) {
     try {
-      const response = await axios.get(
-        `https://metastats-api-v1.new-york.agiliumtrade.ai/users/current/accounts/${data.accountId}/metrics`,
-        {
-          headers: {
-            "auth-token": `${process.env.METAAPI_AUTH_TOKEN}`,
-          },
-        }
-      );
-
-      const account = response.data.metrics;
       const overAllDrawdown =
-        ((data.initialBalance - account.equity) / data.initialBalance) * 100;
+        ((account.initialBalance - equityBalanceData.equity) /
+          account.initialBalance) *
+        100;
 
       if (overAllDrawdown >= 12)
         return {
-          account: data,
+          account: account,
           breach: true,
           breachType: "OverAll",
           drawDown: {
-            equity: account.equity,
+            equity: equityBalanceData.equity,
             percentage: overAllDrawdown,
           },
           profitTarget: false,
@@ -200,14 +178,16 @@ module.exports = {
         };
 
       const dailyDrawdown =
-        ((data.startingBalance - account.equity) / data.startingBalance) * 100;
+        ((account.startingBalance - equityBalanceData.equity) /
+          account.startingBalance) *
+        100;
 
-      if (isNewDay(data.lastChecked)) {
-        data.startingBalance = account.equity;
-        data.lastChecked = new Date();
+      if (isNewDay(account.lastChecked)) {
+        account.startingBalance = equityBalanceData.equity;
+        account.lastChecked = new Date();
         await axios.post(
-          `${process.env.API}/updates/newDay/${data._id}`,
-          data, // Assuming `account` is a JSON object
+          `${process.env.API}/updates/newDay/${account._id}`,
+          account, // Assuming `account` is a JSON object
           {
             headers: {
               Authorization: `${process.env.SECRET_TOKEN}`,
@@ -218,11 +198,11 @@ module.exports = {
 
       if (dailyDrawdown >= 6)
         return {
-          account: data,
+          account: account,
           breach: true,
           breachType: "Daily",
           drawDown: {
-            equity: account.equity,
+            equity: equityBalanceData.equity,
             percentage: dailyDrawdown,
           },
           profitTarget: false,
@@ -230,7 +210,7 @@ module.exports = {
         };
 
       return {
-        account: data,
+        account: account,
         breach: false,
         breachType: null,
         drawDown: null,
@@ -238,12 +218,11 @@ module.exports = {
       };
     } catch (e) {
       console.log(e);
-      return { account: data, error: true };
+      return { account: account, error: true };
     }
   },
   dataHandler: async function (data) {
-    const { account, breach, breachType, drawDown, profitTarget, error } = data;
-    if (!error && (breach || profitTarget))
+    const { account, breach, breachType, drawDown, profitTarget } = data;
       try {
         if (breach)
           await fetch(
