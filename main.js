@@ -28,10 +28,12 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
   constructor(accountId) {
     super(accountId);
     this.triggerWorker = _.debounce(this.runWorker, 5000);
+    this.isStopped = false;
   }
 
   async onEquityOrBalanceUpdated(equityBalanceData) {
-    console.log("equity balance update received", equityBalanceData);
+    if (this.isStopped) return;
+    //console.log("equity balance update received", equityBalanceData);
     this.triggerWorker(equityBalanceData);
   }
   async onConnected() {
@@ -69,7 +71,6 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
         }
       );
       if (!result.error && (result.breach || result.profitTarget)) {
-        console.log(result)
         piscina.run(result, {
           name: "dataHandler",
         });
@@ -79,6 +80,10 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
     } catch (e) {
       console.log(e);
     }
+  }
+
+  stop() {
+    this.isStopped = true;
   }
 }
 
