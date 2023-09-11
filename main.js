@@ -27,15 +27,18 @@ const riskManagementApi = riskManagement.riskManagementApi;
 class ExampleEquityBalanceListener extends EquityBalanceListener {
   constructor(accountId) {
     super(accountId);
-    this.triggerWorker = _.debounce(this.runWorker, 5000);
-    this.isStopped = false;
+    this.triggerWorker = _.debounce(this.runWorker.bind(this), 5000); // bind this to runWorker
+  }
+
+  setListenerId(id) {
+    this.listenerId = id;
   }
 
   async onEquityOrBalanceUpdated(equityBalanceData) {
-    if (this.isStopped) return;
-    //console.log("equity balance update received", equityBalanceData);
+    if (!this.listenerId) return;  // If there's no listenerId, then don't process
     this.triggerWorker(equityBalanceData);
   }
+
   async onConnected() {
     //console.log("on connected event received");
   }
@@ -75,17 +78,18 @@ class ExampleEquityBalanceListener extends EquityBalanceListener {
           name: "dataHandler",
         });
 
-        this.stop();
+        // Assuming riskManagementApi.removeEquityBalanceListener properly stops the listener based on listenerId.
+        riskManagementApi.removeEquityBalanceListener(this.listenerId);
+
+        // Since we're stopping using the listenerId, we can delete the listenerId to signify the listener is no longer active.
+        delete this.listenerId;
       }
     } catch (e) {
       console.log(e);
     }
   }
-
-  stop() {
-    this.isStopped = true;
-  }
 }
+
 
 app.get("/startListener/:accountId", async (req, res) => {
   try {
@@ -138,6 +142,9 @@ async function startAllListeners() {
         equityBalanceListener,
         accountId
       );
+
+      equityBalanceListener.setListenerId(listenerId);
+
       // Store the listenerId if you want to stop it later
       // You can store it in a map or in your database
     } catch (err) {
